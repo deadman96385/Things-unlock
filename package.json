@@ -1,0 +1,35 @@
+{
+  "name": "things-unlock",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local signer for Android Things authenticated AVB unlock credentials",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "things-unlock": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:web": "tsc -p tsconfig.web.json && node scripts/build-web.mjs",
+    "test:aosp": "npm run build && python test/verify_aosp.py"
+  },
+  "dependencies": {
+    "@zip.js/zip.js": "2.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "esbuild": "0.28.2",
+    "typescript": "~5.9.3"
+  }
+}

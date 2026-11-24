@@ -1,0 +1,19 @@
+Things Unlock
+=============
+
+Extract the entire ZIP. Open a terminal in the folder that contains index.html.
+A modern browser and a local static server are required for Web Crypto.
+With Python 3 installed, start the server from the extracted folder.
+
+Windows PowerShell
+  py -3 -m http.server 4173 --bind 127.0.0.1
+
+macOS or Linux
+  python3 -m http.server 4173 --bind 127.0.0.1
+
+Open http://127.0.0.1:4173/ in the browser. Use Quick start or Try sample files
+on the page. Press Ctrl+C in the terminal to stop the server.
+
+The app runs without internet access. The bundled demo uses synthetic
+credentials. Bring the authorized credentials for your own product for a
+hardware unlock.

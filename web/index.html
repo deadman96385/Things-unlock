@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="referrer" content="no-referrer">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+    <meta name="description" content="Match and sign an Android Things unlock challenge locally in your browser.">
+    <title>Things Unlock</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./assets/styles.css">
+    <script type="module" src="./assets/main.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="wrap header-content">
+        <div class="wordmark"><span class="brand-mark" aria-hidden="true"><span class="icon-lock"></span></span> Things Unlock</div>
+        <button type="button" class="button button-quiet" id="clear-session" disabled>Clear session</button>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Local signing</p>
+          <h1>Sign an unlock<br class="hero-break"> challenge</h1>
+          <p class="lede">Generate an Android Things unlock credential. Your keys are processed in this tab and stay in memory for the session.</p>
+          <div class="hero-actions">
+            <a class="button button-secondary" href="#quick-start">Quick start</a>
+            <button type="button" class="button button-quiet" id="try-demo" disabled>Try sample files</button>
+          </div>
+          <p class="feedback" id="demo-feedback" role="status"></p>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="art-grid"></div>
+          <div class="orbit orbit-outer"></div>
+          <div class="orbit orbit-middle"></div>
+          <div class="orbit orbit-inner"></div>
+          <div class="art-node art-node-a"></div>
+          <div class="art-node art-node-b"></div>
+          <div class="art-node art-node-c"></div>
+          <div class="art-core"><span class="icon-lock"></span></div>
+        </div>
+      </div>
+
+      <p class="notice" id="environment" role="alert" hidden></p>
+      <noscript><p class="notice">Enable JavaScript to sign credentials in this browser.</p></noscript>
+
+      <div class="workspace">
+        <div class="inputs">
+          <section class="panel" aria-labelledby="challenge-title">
+            <h2 id="challenge-title">Challenge file</h2>
+            <p class="section-copy" id="challenge-hint">Choose the 52-byte ATX challenge from your device. <a href="#capture-challenge">How to capture it</a></p>
+            <label class="drop-zone" id="challenge-drop">
+              <input class="file-input" id="challenge-file" type="file" aria-label="Challenge file" aria-describedby="challenge-hint" disabled>
+              <span class="drop-icon icon-file" aria-hidden="true"></span>
+              <span class="drop-copy"><strong id="challenge-name">Drop a challenge file here</strong><span>ATX binary</span></span>
+              <span class="browse" id="challenge-browse" aria-hidden="true">Browse</span>
+            </label>
+            <p class="feedback" id="challenge-feedback" role="status"></p>
+          </section>
+
+          <section class="panel" aria-labelledby="credentials-title">
+            <h2 id="credentials-title">Signing credentials</h2>
+            <p class="section-copy">Import the credential ZIP or three loose files issued for your device.</p>
+            <div class="mode-switch" role="group" aria-label="Credential import format">
+              <button type="button" id="zip-mode" aria-pressed="true" aria-controls="zip-panel" disabled>ZIP bundles</button>
+              <button type="button" id="loose-mode" aria-pressed="false" aria-controls="loose-panel" disabled>Loose files</button>
+            </div>
+
+            <div id="zip-panel">
+              <label class="drop-zone" id="zip-drop">
+                <input class="file-input" id="zip-files" type="file" accept=".zip,application/zip" multiple aria-label="Credential ZIPs" disabled>
+                <span class="drop-icon icon-archive" aria-hidden="true"></span>
+                <span class="drop-copy"><strong>Drop credential ZIPs here</strong><span>One or more bundles</span></span>
+                <span class="browse" aria-hidden="true">Browse</span>
+              </label>
+            </div>
+
+            <div id="loose-panel" hidden>
+              <div class="loose-grid">
+                <label class="loose-field">PIK certificate
+                  <input id="pik-file" type="file" accept=".bin,application/octet-stream" disabled>
+                </label>
+                <label class="loose-field">PUK certificate
+                  <input id="puk-file" type="file" accept=".bin,application/octet-stream" disabled>
+                </label>
+                <label class="loose-field">PUK private key
+                  <input id="pem-file" type="file" accept=".pem" disabled>
+                </label>
+              </div>
+              <p class="file-hint">Two ATX binary certificates and an unencrypted RSA PEM key.</p>
+              <button type="button" class="button button-secondary" id="add-loose" disabled>Add bundle</button>
+            </div>
+
+            <p class="feedback" id="import-feedback" role="status"></p>
+            <div class="imported" id="imported" hidden>
+              <h3 id="imported-title">Imported bundles</h3>
+              <ul class="bundle-list" id="bundle-list" aria-labelledby="imported-title"></ul>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel result-panel" aria-labelledby="match-title">
+          <div class="result-heading"><h2 id="match-title">Bundle match</h2><span class="result-indicator" aria-hidden="true"></span></div>
+          <div class="result-state" id="result-state" data-state="idle" aria-live="polite">
+            <strong id="match-status">Waiting for a challenge</strong>
+            <p id="match-description">Add a challenge file to look up its product ID.</p>
+          </div>
+          <dl class="match-details" id="challenge-details" hidden>
+            <div><dt>Product ID hash</dt><dd><code id="product-hash"></code></dd></div>
+          </dl>
+          <fieldset class="match-options" id="match-options" hidden>
+            <legend>Choose a bundle</legend>
+            <div id="match-choices"></div>
+          </fieldset>
+          <p class="file-hint" id="match-help" hidden><a href="#troubleshooting">Troubleshoot a match</a></p>
+          <div class="output">
+            <div class="output-file"><span class="icon-file" aria-hidden="true"></span> <code id="output-filename">unlock-credential.bin</code></div>
+            <button class="button button-primary" id="download" type="button" disabled>Generate &amp; download</button>
+            <p class="feedback" id="output-feedback" role="status"></p>
+            <div class="output-actions">
+              <a id="download-again" download="unlock-credential.bin" hidden>Download again</a>
+              <a id="verify-next" href="#verify-unlock" hidden>Next: verify in fastboot</a>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel quick-start" id="quick-start" aria-labelledby="quick-start-title">
+        <div class="guide-intro">
+          <h2 id="quick-start-title">Quick start</h2>
+          <p>You’ll need a device that supports Android Things authenticated unlock, a valid ZIP or loose credentials for its product, and a computer running <a href="https://developer.android.com/tools/releases/platform-tools">Android Platform-Tools</a>.</p>
+          <p>Back up your device and check its model-specific unlock instructions before changing the bootloader state.</p>
+        </div>
+        <div class="guide-grid">
+          <section id="capture-challenge" aria-labelledby="capture-title" class="guide-step">
+            <h3 id="capture-title">Capture the challenge</h3>
+            <p>Boot the target device into bootloader fastboot mode and connect it by USB. Open PowerShell in the extracted Platform-Tools folder.</p>
+            <pre aria-label="Capture the challenge in Windows PowerShell"><code>.\fastboot.exe devices
+.\fastboot.exe oem at-get-vboot-unlock-challenge
+.\fastboot.exe get_staged .\challenge.bin</code></pre>
+            <p>If <code>devices</code> lists your target and both commands succeed, add <code>challenge.bin</code> from that folder to the signer above.</p>
+          </section>
+          <section id="verify-unlock" aria-labelledby="verify-title" class="guide-step">
+            <h3 id="verify-title">Verify in fastboot</h3>
+            <p>Move <code>unlock-credential.bin</code> from Downloads into the Platform-Tools folder. Keep the same device in the same bootloader session.</p>
+            <pre aria-label="Apply and verify in Windows PowerShell"><code>.\fastboot.exe stage .\unlock-credential.bin
+.\fastboot.exe oem at-unlock-vboot
+.\fastboot.exe getvar at-vboot-state</code></pre>
+            <p>Use the actual filename if your browser adds a suffix. Check for <code>avb-locked: 0</code>. The product ID match in the page only confirms the bundle targets the same product.</p>
+          </section>
+        </div>
+        <p class="guide-note">On macOS or Linux, use <code>./fastboot</code> from Platform-Tools or <code>fastboot</code> on your PATH, and use forward slashes in paths. <a href="https://android.googlesource.com/platform/external/avb/+/refs/heads/main/tools/at_auth_unlock.py#324">AOSP command reference</a></p>
+      </section>
+
+      <section class="panel troubleshooting" id="troubleshooting" aria-labelledby="troubleshooting-title">
+        <h2 id="troubleshooting-title">Troubleshooting</h2>
+        <details>
+          <summary>Fastboot lists no device</summary>
+          <p>Check the USB data cable, confirm the device is in bootloader fastboot mode, and check the device’s USB driver on Windows. If several devices are listed, disconnect the others or pass the intended serial with <code>-s</code> to every fastboot command.</p>
+        </details>
+        <details>
+          <summary>Fastboot reports an unknown ATX command</summary>
+          <p>Confirm you’re in bootloader fastboot mode and check whether your exact model and firmware support Android Things authenticated unlock.</p>
+        </details>
+        <details>
+          <summary>The page can’t import or match my bundle</summary>
+          <p>Use the original credential ZIP, or import its PIK certificate, PUK certificate, and matching unencrypted RSA PEM as loose files. If the product ID differs, confirm you captured the challenge from the intended device and use the bundle issued for that product.</p>
+        </details>
+        <details>
+          <summary>Fastboot rejects the credential or still reports locked</summary>
+          <p>Capture a fresh challenge from the same device, sign it, and retry in that bootloader session. If it still fails, check your device’s required certificate versions and bootloader support. For a bug report, share the exact model, firmware, Platform-Tools version, and a redacted fastboot error. Keep keys, credential archives, and device serials private.</p>
+        </details>
+      </section>
+    </main>
+
+    <footer class="wrap footer">
+      <span>Android Things authenticated unlock</span>
+      <nav class="footer-links" aria-label="Project resources"><!-- source-link --><!-- offline-links --><span>ATX v1</span></nav>
+    </footer>
+  </body>
+</html>
