@@ -2,6 +2,18 @@
 
 Things Unlock generates a binary Android Things authenticated AVB unlock credential locally. It requires the 52-byte ATX challenge file and a credential set issued for the target product. Device acceptance depends on the bootloader's current challenge, trust chain, and key versions.
 
+## Desktop screenshots
+
+![Things Unlock desktop view with the challenge picker, ZIP and loose credential options, and bundle match panel](docs/images/desktop-overview.png)
+
+**Sample signing result**
+
+![Desktop demo showing a matching product ID, the selected sample bundle, and the generated demo credential](docs/images/desktop-demo.png)
+
+## Architecture
+
+![Architecture diagram showing GitHub Pages serving the app, the browser signing with local credentials, and the Android device verifying the result](docs/images/architecture.png)
+
 ## Using the signer
 
 Open **Quick start** for the PowerShell steps to capture a challenge, sign it, and check the bootloader state. Bring the credential bundle issued for your product. For a practice run, choose **Try sample files**. The demo uses synthetic credentials and downloads `demo-unlock-credential.bin`.
