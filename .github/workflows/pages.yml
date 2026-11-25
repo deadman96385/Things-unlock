@@ -25,6 +25,7 @@ jobs:
       - run: npm run build:web
         env:
           THINGS_UNLOCK_SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}
+          THINGS_UNLOCK_CREDENTIAL_ROOTS: ${{ vars.THINGS_UNLOCK_CREDENTIAL_ROOTS }}
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist-web

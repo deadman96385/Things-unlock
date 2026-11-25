@@ -14,6 +14,7 @@ macOS or Linux
 Open http://127.0.0.1:4173/ in the browser. Use Quick start or Try sample files
 on the page. Press Ctrl+C in the terminal to stop the server.
 
-The app runs without internet access. The bundled demo uses synthetic
-credentials. Bring the authorized credentials for your own product for a
-hardware unlock.
+Local files and the demo work without internet access. The demo generates
+temporary credentials in the browser. Importing from a URL requires access
+to the configured source. Bring the authorized credentials for your own
+product for a hardware unlock.

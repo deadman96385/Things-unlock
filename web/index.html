@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <meta name="referrer" content="no-referrer">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src data:; connect-src 'none'; worker-src 'self'; form-action 'none'; base-uri 'none'">
     <meta name="description" content="Match and sign an Android Things unlock challenge locally in your browser.">
     <title>Things Unlock</title>
     <link rel="icon" href="data:,">
@@ -63,10 +63,11 @@
 
           <section class="panel" aria-labelledby="credentials-title">
             <h2 id="credentials-title">Signing credentials</h2>
-            <p class="section-copy">Import the credential ZIP or three loose files issued for your device.</p>
+            <p class="section-copy">Import the credentials issued for your device.</p>
             <div class="mode-switch" role="group" aria-label="Credential import format">
               <button type="button" id="zip-mode" aria-pressed="true" aria-controls="zip-panel" disabled>ZIP bundles</button>
               <button type="button" id="loose-mode" aria-pressed="false" aria-controls="loose-panel" disabled>Loose files</button>
+              <button type="button" id="source-mode" aria-pressed="false" aria-controls="source-panel" disabled hidden>From URL</button>
             </div>
 
             <div id="zip-panel">
@@ -92,6 +93,17 @@
               </div>
               <p class="file-hint">Two ATX binary certificates and an unencrypted RSA PEM key.</p>
               <button type="button" class="button button-secondary" id="add-loose" disabled>Add bundle</button>
+            </div>
+
+            <div id="source-panel" hidden>
+              <label class="source-field" for="source-url">Credential source URL</label>
+              <div class="source-controls">
+                <input type="url" id="source-url" placeholder="https://…/bundles.json" spellcheck="false" autocomplete="off" aria-describedby="source-hint" disabled>
+                <button type="button" class="button button-secondary" id="load-source" disabled>Load source</button>
+              </div>
+              <p class="file-hint" id="source-hint">Paste a JSON or TXT manifest, or a direct ZIP URL from an authorized source. Only the bundle you choose is downloaded.</p>
+              <p class="feedback" id="source-feedback" role="status"></p>
+              <ul class="bundle-list source-list" id="source-list" aria-label="Available credential bundles" hidden></ul>
             </div>
 
             <p class="feedback" id="import-feedback" role="status"></p>
@@ -167,7 +179,7 @@
         </details>
         <details>
           <summary>The page can’t import or match my bundle</summary>
-          <p>Use the original credential ZIP, or import its PIK certificate, PUK certificate, and matching unencrypted RSA PEM as loose files. If the product ID differs, confirm you captured the challenge from the intended device and use the bundle issued for that product.</p>
+          <p>Use the original credential ZIP, or import its PIK certificate, PUK certificate, and matching unencrypted RSA PEM as loose files. For URL imports, use a direct link from an authorized source that allows browser requests. If the product ID differs, confirm you captured the challenge from the intended device.</p>
         </details>
         <details>
           <summary>Fastboot rejects the credential or still reports locked</summary>

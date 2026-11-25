@@ -194,6 +194,21 @@ h3 { font-size: .875rem; line-height: 1.35; }
 }
 .loose-field input { width: 100%; min-width: 0; color: var(--muted); font-size: .875rem; font-weight: 400; }
 .loose-field input::file-selector-button { margin-right: .5rem; padding: .2rem .4rem; border: 1px solid #454767; border-radius: .3rem; color: #eee9ff; background: #26253d; font: inherit; cursor: pointer; }
+.source-field { display: block; margin-bottom: .35rem; font-size: .875rem; font-weight: 600; }
+.source-controls { display: flex; align-items: stretch; flex-wrap: wrap; gap: .45rem; }
+.source-controls input {
+  flex: 1 1 13rem;
+  min-width: 0;
+  padding: .55rem .7rem;
+  border: 1px solid var(--line);
+  border-radius: .45rem;
+  color: #f1f0fc;
+  background: var(--surface-inset);
+  font-size: .875rem;
+}
+.source-controls input::placeholder { color: var(--muted); }
+.source-list { overflow-y: auto; max-height: 20rem; }
+.source-list .bundle-row { padding-block: .45rem; }
 .file-hint { margin-block: .6rem; }
 .feedback { margin-top: .55rem; white-space: pre-line; }
 .feedback:empty { margin-top: 0; }

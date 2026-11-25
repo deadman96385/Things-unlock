@@ -1,9 +1,12 @@
 import { createSigner, findMatches, parseChallenge, readCredentialZip } from "../src/index.js";
-import type { UnlockBundle, UnlockChallenge } from "../src/index.js";
+import type { CredentialFiles, UnlockBundle, UnlockChallenge } from "../src/index.js";
 import { CERT_BYTES, CHALLENGE_BYTES } from "../src/core/atx.js";
 import { MAX_PRIVATE_KEY_PEM_BYTES } from "../src/core/pem.js";
 import { MAX_CREDENTIAL_ZIP_BYTES } from "../src/import/zip.js";
-import demoFixture from "./demo-fixture.json" with { type: "json" };
+import { authorizedSourceUrl, directBundle, hasCredentialSources, MAX_MANIFEST_BYTES, parseSourceManifest } from "./credential-source.js";
+import type { SourceBundle } from "./credential-source.js";
+import { createDemo } from "./demo.js";
+import { fetchSourceBytes } from "./source-fetch.js";
 
 const CREDENTIAL_NAME = "unlock-credential.bin";
 const SAMPLE_CREDENTIAL_NAME = "demo-unlock-credential.bin";
@@ -26,6 +29,12 @@ function initialize(signer: ReturnType<typeof createSigner>) {
   const zipInput = element<HTMLInputElement>("zip-files");
   const zipMode = element<HTMLButtonElement>("zip-mode");
   const looseMode = element<HTMLButtonElement>("loose-mode");
+  const sourceMode = element<HTMLButtonElement>("source-mode");
+  sourceMode.hidden = !hasCredentialSources;
+  const sourceInput = element<HTMLInputElement>("source-url");
+  const loadSourceButton = element<HTMLButtonElement>("load-source");
+  const sourceList = element("source-list");
+  const sourceFeedback = element("source-feedback");
   const pikInput = element<HTMLInputElement>("pik-file");
   const pukInput = element<HTMLInputElement>("puk-file");
   const pemInput = element<HTMLInputElement>("pem-file");
@@ -42,15 +51,16 @@ function initialize(signer: ReturnType<typeof createSigner>) {
   const downloadAgain = element<HTMLAnchorElement>("download-again");
   const verifyNext = element("verify-next");
   const looseInputs = [pikInput, pukInput, pemInput];
-  const importControls = [challengeInput, zipInput, zipMode, looseMode, ...looseInputs];
+  const importControls = [challengeInput, zipInput, zipMode, looseMode, sourceMode, sourceInput, ...looseInputs];
 
   const bundles: UnlockBundle[] = [];
   let challenge: { name: string; bytes: Uint8Array; info: UnlockChallenge } | undefined;
   let chosenBundle: UnlockBundle | undefined;
   let downloadUrl: string | undefined;
   let demoMode = false;
-  let mode: "zip" | "loose" = "zip";
-  let task: "challenge" | "import" | "sign" | "demo" | undefined;
+  let sourceEntries: SourceBundle[] = [];
+  let mode: "zip" | "loose" | "source" = "zip";
+  let task: "challenge" | "import" | "sign" | "demo" | "source" | undefined;
 
   function currentMatches(): UnlockBundle[] {
     return challenge ? findMatches(challenge.info, bundles) : [];
@@ -84,7 +94,9 @@ function initialize(signer: ReturnType<typeof createSigner>) {
     } else if (bundles.length) {
       showMatchStatus("missing", "No matching bundle", "Use the bundle issued for this product, or capture a challenge from the intended device.");
     } else {
-      showMatchStatus("idle", "Waiting for credentials", "Import a ZIP bundle or a set of loose files.");
+      const formats = hasCredentialSources ? "Import a bundle from local files or an authorized URL."
+        : "Import a ZIP bundle or a set of loose files.";
+      showMatchStatus("idle", "Waiting for credentials", formats);
     }
 
     downloadButton.disabled = Boolean(task) || !selected;
@@ -128,7 +140,7 @@ function initialize(signer: ReturnType<typeof createSigner>) {
         resetOutput();
         feedback(importFeedback, "Removed " + bundle.name + ".");
         render();
-        (mode === "zip" ? zipInput : pikInput).focus();
+        ({ zip: zipInput, loose: pikInput, source: sourceInput })[mode].focus();
       });
       row.append(remove);
       return row;
@@ -159,26 +171,63 @@ function initialize(signer: ReturnType<typeof createSigner>) {
 
   function render() {
     const busy = Boolean(task);
-    const hasInputs = Boolean(challenge || bundles.length || looseInputs.some((input) => input.files?.length));
+    const hasSource = Boolean(sourceInput.value.trim());
+    const hasInputs = Boolean(challenge || bundles.length || hasSource || looseInputs.some((input) => input.files?.length));
     for (const control of importControls) control.disabled = busy || demoMode;
     zipMode.setAttribute("aria-pressed", String(mode === "zip"));
     looseMode.setAttribute("aria-pressed", String(mode === "loose"));
+    sourceMode.setAttribute("aria-pressed", String(mode === "source"));
     element("zip-panel").hidden = mode !== "zip";
     element("loose-panel").hidden = mode !== "loose";
+    element("source-panel").hidden = mode !== "source";
+    loadSourceButton.disabled = busy || demoMode || !hasSource;
     addLooseButton.disabled = busy || demoMode || looseInputs.some((input) => !input.files?.length);
-    clearButton.disabled = busy || !(hasInputs || demoFeedback.textContent
+    clearButton.disabled = busy || !(hasInputs || demoFeedback.textContent || sourceFeedback.textContent
       || challengeFeedback.textContent || importFeedback.textContent || outputFeedback.textContent);
     clearButton.textContent = demoMode ? "Exit demo" : "Clear session";
     demoButton.disabled = busy || hasInputs;
-    demoButton.textContent = task === "demo" ? "Loading sample files…" : "Try sample files";
+    demoButton.textContent = task === "demo" ? "Generating sample files…" : "Try sample files";
     element("output-filename").textContent = demoMode ? SAMPLE_CREDENTIAL_NAME : CREDENTIAL_NAME;
     element("challenge-name").textContent = challenge?.name ?? "Drop a challenge file here";
     element("challenge-browse").textContent = challenge ? "Replace" : "Browse";
 
     const matches = currentMatches();
+    renderSources();
     renderBundleList(matches);
     renderChoices(matches);
     renderMatch(matches);
+  }
+
+  function renderSources() {
+    sourceList.hidden = sourceEntries.length === 0;
+    sourceList.replaceChildren(...sourceEntries.map((entry, index) => {
+      const row = document.createElement("li");
+      row.className = "bundle-row";
+
+      const label = document.createElement("div");
+      label.className = "bundle-label";
+      const title = document.createElement("strong");
+      title.textContent = entry.name;
+      const from = document.createElement("span");
+      from.className = "bundle-meta";
+      const locations = "zip" in entry.source ? [entry.source.zip] : Object.values(entry.source);
+      const hosts = new Set(locations.map((url) => url.host));
+      const declaredMatch = challenge && entry.productIdHash
+        ? entry.productIdHash === challenge.info.productIdHash ? " · Listed product matches" : " · Listed for a different product"
+        : "";
+      from.textContent = [...hosts].join(", ") + declaredMatch;
+      label.append(title, from);
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button button-secondary";
+      button.textContent = "Import";
+      button.setAttribute("aria-label", "Import " + entry.name);
+      button.disabled = Boolean(task) || demoMode;
+      button.addEventListener("click", () => importSourceBundle(entry, index));
+      row.append(label, button);
+      return row;
+    }));
   }
 
   async function perform(kind: NonNullable<typeof task>, message: HTMLElement, action: () => Promise<void>) {
@@ -215,14 +264,17 @@ function initialize(signer: ReturnType<typeof createSigner>) {
     });
   }
 
+  async function importFiles(files: CredentialFiles, name: string): Promise<UnlockBundle> {
+    try {
+      return await signer.importBundle(files, name);
+    } finally {
+      files.pukKeyPem.fill(0);
+    }
+  }
+
   async function importZip(bytes: Uint8Array, name: string): Promise<UnlockBundle> {
     try {
-      const credentials = await readCredentialZip(bytes);
-      try {
-        return await signer.importBundle(credentials, name);
-      } finally {
-        credentials.pukKeyPem.fill(0);
-      }
+      return await importFiles(await readCredentialZip(bytes), name);
     } finally {
       bytes.fill(0);
     }
@@ -261,14 +313,61 @@ function initialize(signer: ReturnType<typeof createSigner>) {
       const [pikCert, pukCert] = await Promise.all([readFile(pik, CERT_BYTES), readFile(puk, CERT_BYTES)]);
       const pukKeyPem = await readFile(pem, MAX_PRIVATE_KEY_PEM_BYTES);
       try {
-        bundles.push(await signer.importBundle({ pikCert, pukCert, pukKeyPem }, puk.name));
+        bundles.push(await importFiles({ pikCert, pukCert, pukKeyPem }, puk.name));
       } catch (error) {
         throw new Error(errorText(error) + " Select both certificates and the PEM from the same credential set.");
-      } finally {
-        pukKeyPem.fill(0);
       }
       for (const input of looseInputs) input.value = "";
       feedback(importFeedback, "Imported " + puk.name + ".", "success");
+    });
+  }
+
+  function loadSource() {
+    void perform("source", sourceFeedback, async () => {
+      sourceEntries = [];
+      renderSources();
+      feedback(sourceFeedback, "Loading source…");
+      const url = authorizedSourceUrl(sourceInput.value.trim());
+      const path = url.pathname.toLowerCase();
+      if (path.endsWith(".zip")) {
+        sourceEntries = [directBundle(url)];
+      } else if (path.endsWith(".json") || path.endsWith(".txt")) {
+        const bytes = await fetchSourceBytes(url, MAX_MANIFEST_BYTES);
+        try {
+          const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+          sourceEntries = parseSourceManifest(text, url);
+        } finally {
+          bytes.fill(0);
+        }
+      } else {
+        throw new Error("Use a URL to a .json or .txt manifest or a .zip bundle.");
+      }
+      feedback(sourceFeedback, "Choose a bundle to import.");
+    });
+  }
+
+  function importSourceBundle(entry: SourceBundle, index: number) {
+    void perform("source", sourceFeedback, async () => {
+      feedback(sourceFeedback, "Downloading the selected bundle…");
+      const { source, name } = entry;
+      let bundle: UnlockBundle;
+      if ("zip" in source) {
+        bundle = await importZip(await fetchSourceBytes(source.zip, MAX_CREDENTIAL_ZIP_BYTES), name);
+      } else {
+        const [pikCert, pukCert] = await Promise.all([
+          fetchSourceBytes(source.pikCert, CERT_BYTES),
+          fetchSourceBytes(source.pukCert, CERT_BYTES),
+        ]);
+        const pukKeyPem = await fetchSourceBytes(source.pukKey, MAX_PRIVATE_KEY_PEM_BYTES);
+        bundle = await importFiles({ pikCert, pukCert, pukKeyPem }, name);
+      }
+      if (entry.productIdHash && entry.productIdHash !== bundle.productIdHash) {
+        throw new Error("The imported bundle’s product ID differs from the manifest.");
+      }
+      bundles.push(bundle);
+      sourceEntries.splice(index, 1);
+      resetOutput();
+      feedback(sourceFeedback, "Imported " + name + ".", "success");
     });
   }
 
@@ -278,15 +377,26 @@ function initialize(signer: ReturnType<typeof createSigner>) {
   addLooseButton.addEventListener("click", loadLoose);
   zipMode.addEventListener("click", () => { mode = "zip"; render(); });
   looseMode.addEventListener("click", () => { mode = "loose"; render(); });
+  sourceMode.addEventListener("click", () => { mode = "source"; render(); });
+  loadSourceButton.addEventListener("click", loadSource);
+  sourceInput.addEventListener("input", () => {
+    sourceEntries = [];
+    feedback(sourceFeedback, "");
+    render();
+  });
+  sourceInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !loadSourceButton.disabled) loadSource();
+  });
 
   demoButton.addEventListener("click", () => {
     void perform("demo", demoFeedback, async () => {
       feedback(challengeFeedback, "");
       feedback(importFeedback, "");
       resetOutput();
-      const bytes = decodeDemoBytes(demoFixture.challenge);
+      feedback(demoFeedback, "Generating temporary demo keys in this browser…");
+      const { challenge: bytes, files } = await createDemo(globalThis.crypto);
       const info = parseChallenge(bytes);
-      const bundle = await importZip(decodeDemoBytes(demoFixture.bundle), "sample-credentials.zip");
+      const bundle = await importFiles(files, "Generated sample credentials");
       challenge = { name: "sample-challenge.bin", bytes, info };
       bundles.push(bundle);
       mode = "zip";
@@ -322,11 +432,14 @@ function initialize(signer: ReturnType<typeof createSigner>) {
     chosenBundle = undefined;
     bundles.length = 0;
     for (const input of looseInputs) input.value = "";
+    sourceInput.value = "";
+    sourceEntries = [];
     mode = "zip";
     demoMode = false;
     resetOutput();
     feedback(challengeFeedback, "");
     feedback(importFeedback, "");
+    feedback(sourceFeedback, "");
     feedback(demoFeedback, "");
     render();
     (wasDemo ? demoButton : challengeInput).focus();
@@ -338,10 +451,6 @@ function initialize(signer: ReturnType<typeof createSigner>) {
     });
   }
   render();
-}
-
-function decodeDemoBytes(chunks: readonly string[]): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from(atob(chunks.join("")), (character) => character.charCodeAt(0));
 }
 
 function bundleDescription(bundle: UnlockBundle): string {

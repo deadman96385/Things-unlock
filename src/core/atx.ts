@@ -1,22 +1,26 @@
-const VERSION_BYTES = 4;
-const FORMAT_VERSION = 1;
+export const VERSION_BYTES = 4;
+export const FORMAT_VERSION = 1;
 const SHA256_BYTES = 32;
 const CHALLENGE_NONCE_BYTES = 16;
-const RSA_BITS = 4096;
-const RSA_BYTES = RSA_BITS / 8;
-const AVB_RSA_HEADER_BYTES = 8;
+export const RSA_BITS = 4096;
+export const RSA_BYTES = RSA_BITS / 8;
+export const AVB_RSA_HEADER_BYTES = 8;
 const AVB_RSA_PUBLIC_KEY_BYTES = AVB_RSA_HEADER_BYTES + 2 * RSA_BYTES;
 
 export const CHALLENGE_BYTES = VERSION_BYTES + SHA256_BYTES + CHALLENGE_NONCE_BYTES;
 
-const CERT_SUBJECT_OFFSET = VERSION_BYTES + AVB_RSA_PUBLIC_KEY_BYTES;
-const CERT_USAGE_OFFSET = CERT_SUBJECT_OFFSET + SHA256_BYTES;
-const CERT_KEY_VERSION_OFFSET = CERT_USAGE_OFFSET + SHA256_BYTES;
-const CERT_SIGNED_BYTES = CERT_KEY_VERSION_OFFSET + 8;
+export const CERT_SUBJECT_OFFSET = VERSION_BYTES + AVB_RSA_PUBLIC_KEY_BYTES;
+export const CERT_USAGE_OFFSET = CERT_SUBJECT_OFFSET + SHA256_BYTES;
+export const CERT_KEY_VERSION_OFFSET = CERT_USAGE_OFFSET + SHA256_BYTES;
+export const CERT_SIGNED_BYTES = CERT_KEY_VERSION_OFFSET + 8;
 
 export const CERT_BYTES = CERT_SIGNED_BYTES + RSA_BYTES;
 export const CREDENTIAL_BYTES = VERSION_BYTES + 2 * CERT_BYTES + RSA_BYTES;
 export const RSA_ALGORITHM = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-512" } as const;
+export const CERTIFICATE_USAGE = {
+  PIK: "com.google.android.things.vboot.ca",
+  PUK: "com.google.android.things.vboot.unlock",
+};
 export type SigningCrypto = Pick<SubtleCrypto, "digest" | "importKey" | "sign" | "verify">;
 
 export interface UnlockChallenge {
@@ -55,8 +59,7 @@ export async function parseCertificate(subtle: SigningCrypto, input: Uint8Array,
     throw new Error(`Expected an RSA-4096 public key in the ${role} certificate.`);
   }
 
-  const usage = role === "PIK" ? "com.google.android.things.vboot.ca" : "com.google.android.things.vboot.unlock";
-  const expectedUsage = await subtle.digest("SHA-256", new TextEncoder().encode(usage));
+  const expectedUsage = await subtle.digest("SHA-256", new TextEncoder().encode(CERTIFICATE_USAGE[role]));
   if (toHex(bytes.subarray(CERT_USAGE_OFFSET, CERT_KEY_VERSION_OFFSET)) !== toHex(new Uint8Array(expectedUsage))) {
     throw new Error(`The ${role} certificate has the wrong ATX key usage.`);
   }

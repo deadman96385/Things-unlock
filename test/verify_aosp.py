@@ -3,13 +3,11 @@
 import argparse
 import base64
 import hashlib
-import json
 from pathlib import Path
 import struct
 import subprocess
 import sys
 import tempfile
-import textwrap
 from unittest.mock import patch
 import urllib.request
 import zipfile
@@ -148,7 +146,6 @@ def verify_cli(directory):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--avbtool", type=Path, help="Local copy of the pinned AOSP avbtool.py")
-    parser.add_argument("--write-demo", type=Path, help="Write a fresh synthetic browser demo fixture")
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix="things-unlock-test-") as temp:
         directory = Path(temp)
@@ -156,17 +153,6 @@ def main():
         print(f"AOSP revision {AOSP_REVISION}", flush=True)
         generate_fixtures(directory, reference)
         verify_cli(directory)
-        if args.write_demo:
-            def encoded_fixture(name):
-                return textwrap.wrap(base64.b64encode((directory / name).read_bytes()).decode(), 76)
-
-            fixture = {
-                "purpose": "Synthetic demo only. The private key is intentionally public and has no device trust chain.",
-                "challenge": encoded_fixture("challenge.bin"),
-                "bundle": encoded_fixture("pkcs8.zip"),
-                "credentialSha256": hashlib.sha256((directory / "aosp.bin").read_bytes()).hexdigest(),
-            }
-            args.write_demo.write_text(json.dumps(fixture, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

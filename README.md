@@ -16,11 +16,15 @@ Things Unlock generates a binary Android Things authenticated AVB unlock credent
 
 ## Using the signer
 
-Open **Quick start** for the PowerShell steps to capture a challenge, sign it, and check the bootloader state. Bring the credential bundle issued for your product. For a practice run, choose **Try sample files**. The demo uses synthetic credentials and downloads `demo-unlock-credential.bin`.
+Open **Quick start** for the PowerShell steps to capture a challenge, sign it, and check the bootloader state. Bring the authorized credential bundle for your product. For a practice run, choose **Try sample files**. The demo generates temporary credentials in your browser and downloads `demo-unlock-credential.bin`.
 
 For hardware use, check the instructions for your exact model and firmware before changing its bootloader state. Hardware verification of this release is pending. The signer has passed byte-for-byte AOSP tests, including a user-supplied credential ZIP with a synthetic challenge.
 
 When reporting an issue, include the exact model, firmware, Platform-Tools version, and a redacted fastboot error. Keep private keys, credential bundles, and device serials out of public reports.
+
+## Importing from a URL
+
+When the build has configured credential sources, use **Signing credentials → From URL** to load a ZIP or manifest and select a bundle. Signing happens locally in the browser. See the [credential source guide](docs/credential-sources.md) for examples and setup.
 
 ## Web build and offline package
 
@@ -32,7 +36,7 @@ npm run build:web
 python -m http.server 4173 --bind 127.0.0.1 --directory dist-web
 ```
 
-Open [the local preview](http://127.0.0.1:4173/). Add the challenge, import ZIP bundles or the three loose files, and download the signed credential. The page processes keys and challenges in memory and exposes a **Clear session** button. Its content security policy blocks outbound script connections.
+Open [the local preview](http://127.0.0.1:4173/). Add the challenge and credential bundle, then download the signed credential. **Clear session** clears app state. The signing page blocks outbound connections and delegates authorized URL downloads to a dedicated worker.
 
 The **Offline ZIP** and **SHA-256** links point to the versioned files in `dist-web/downloads/`. Extract the ZIP and follow `START-HERE.txt` to run it over localhost. On Windows, use `Get-FileHash .\things-unlock-v0.1.0-offline.zip -Algorithm SHA256` and compare the hash with the `.sha256` file. On macOS or Linux, use `shasum -a 256 -c things-unlock-v0.1.0-offline.zip.sha256`.
 
@@ -63,5 +67,3 @@ Repeat `--bundle` to search several archives. The signer requires exactly one ma
 ## AOSP parity test
 
 With Python 3 and OpenSSL on `PATH`, run `npm run test:aosp`. The test downloads a hash-checked copy of [AOSP avbtool](https://android.googlesource.com/platform/external/avb/+/23c8439bb647e483b80f9bac6974798a06a4ae5f/avbtool.py), generates a synthetic certificate chain in a temporary directory, and compares the complete CLI output across both containers and both PEM formats. To use an existing copy of the pinned reference, build first and run `python test/verify_aosp.py --avbtool /path/to/avbtool.py`.
-
-To regenerate the intentionally public synthetic demo fixture, build the CLI and run `python test/verify_aosp.py --write-demo web/demo-fixture.json`.

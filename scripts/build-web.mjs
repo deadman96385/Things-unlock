@@ -1,12 +1,25 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { basename } from "node:path";
 import { Uint8ArrayReader, Uint8ArrayWriter, ZipWriter } from "@zip.js/zip.js/lib/zip-native.js";
 import { build } from "esbuild";
 
+const credentialRoots = (process.env.THINGS_UNLOCK_CREDENTIAL_ROOTS ?? "")
+  .split(/[\s,]+/)
+  .filter(Boolean)
+  .map((root) => {
+    const url = new URL(root);
+    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || !url.pathname.endsWith("/")) {
+      throw new Error("Credential source roots must be HTTPS folder URLs ending in a slash.");
+    }
+    return url.href;
+  });
+
 const [bundle, template, styles, instructions, metadata] = await Promise.all([
   build({
-    entryPoints: ["web/main.ts"],
-    outfile: "dist-web/assets/main.js",
+    entryPoints: ["web/main.ts", "web/source-worker.ts"],
+    outdir: "dist-web/assets",
+    define: { __CREDENTIAL_SOURCE_ROOTS__: JSON.stringify(credentialRoots) },
     bundle: true,
     format: "esm",
     platform: "browser",
@@ -38,7 +51,7 @@ const website = page.replace("<!-- offline-links -->",
   '<a download href="./downloads/' + offlineName + '">Offline ZIP</a>' +
   '<a download href="./downloads/' + checksumName + '">SHA-256</a>');
 const assets = [
-  ["assets/main.js", bundle.outputFiles[0].contents],
+  ...bundle.outputFiles.map((file) => ["assets/" + basename(file.path), file.contents]),
   ["assets/styles.css", styles],
 ];
 
